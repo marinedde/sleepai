@@ -171,20 +171,73 @@ with tab1:
         if "Synthétique" in input_mode:
             st.markdown('<div class="clinical-note">🎯 <b>Mode Démonstration</b> : Signal EEG simulé pour validation du système</div>', unsafe_allow_html=True)
             
-            col_param1, col_param2, col_param3 = st.columns(3)
+            col_param1, col_param2 = st.columns(2)
             
             with col_param1:
-                freq = st.slider("Fréquence (Hz)", 0.5, 30.0, 10.0, 0.5, help="Fréquence dominante du signal")
-            with col_param2:
-                amplitude = st.slider("Amplitude (μV)", 0.1, 2.0, 1.0, 0.1, help="Amplitude du signal")
-            with col_param3:
-                noise = st.slider("Bruit", 0.0, 0.5, 0.1, 0.05, help="Niveau de bruit du signal")
+                stage_demo = st.selectbox(
+                    "Stade à simuler",
+                    ["Wake", "N1", "N2", "N3", "REM"],
+                    help="Choisir le type de signal EEG à générer"
+                )
             
-            # Générer le signal
+            with col_param2:
+                noise_level = st.slider("Niveau de bruit", 0.0, 0.3, 0.1, 0.05)
+            
+            # Générer un signal réaliste selon le stade
             sampling_rate = 100
             duration = 30
             t = np.linspace(0, duration, sampling_rate * duration)
-            signal = amplitude * np.sin(2 * np.pi * freq * t) + noise * np.random.randn(len(t))
+            
+            # Générer selon le stade choisi
+            if stage_demo == "Wake":
+                # Éveil : Alpha (8-13 Hz) + Beta (13-30 Hz)
+                signal = (
+                    0.5 * np.sin(2 * np.pi * 10 * t) +  # Alpha
+                    0.3 * np.sin(2 * np.pi * 20 * t) +  # Beta
+                    0.2 * np.sin(2 * np.pi * 15 * t) +  # Beta moyen
+                    noise_level * np.random.randn(len(t))
+                )
+            
+            elif stage_demo == "N1":
+                # N1 : Theta (4-8 Hz) dominant
+                signal = (
+                    0.6 * np.sin(2 * np.pi * 6 * t) +   # Theta
+                    0.2 * np.sin(2 * np.pi * 10 * t) +  # Alpha résiduel
+                    0.15 * np.sin(2 * np.pi * 4 * t) +  # Theta lent
+                    noise_level * np.random.randn(len(t))
+                )
+            
+            elif stage_demo == "N2":
+                # N2 : Theta + fuseaux de sommeil (12-14 Hz)
+                base = 0.5 * np.sin(2 * np.pi * 5 * t)
+                # Ajouter des fuseaux aléatoires
+                for i in range(5):
+                    start = np.random.randint(0, len(t)-500)
+                    fuseau = np.zeros(len(t))
+                    fuseau[start:start+500] = 0.8 * np.sin(2 * np.pi * 13 * t[start:start+500])
+                    base += fuseau
+                signal = base + noise_level * np.random.randn(len(t))
+            
+            elif stage_demo == "N3":
+                # N3 : Delta (0.5-4 Hz) dominant
+                signal = (
+                    1.2 * np.sin(2 * np.pi * 2 * t) +    # Delta fort
+                    0.3 * np.sin(2 * np.pi * 1 * t) +    # Delta lent
+                    0.2 * np.sin(2 * np.pi * 3 * t) +    # Delta rapide
+                    noise_level * np.random.randn(len(t))
+                )
+            
+            elif stage_demo == "REM":
+                # REM : Mixte rapide, ressemble à l'éveil
+                signal = (
+                    0.4 * np.sin(2 * np.pi * 8 * t) +    # Theta
+                    0.3 * np.sin(2 * np.pi * 15 * t) +   # Beta
+                    0.2 * np.sin(2 * np.pi * 25 * t) +   # Gamma
+                    0.15 * np.sin(2 * np.pi * 30 * t) +  # Gamma rapide
+                    noise_level * np.random.randn(len(t))
+                )
+            
+            st.info(f"🎯 **Signal généré** : {stage_demo} - Le modèle devrait prédire ce stade")
             
         else:  # Signal aléatoire
             st.markdown('<div class="warning-box">🎲 <b>Signal Aléatoire</b> : Pour tests uniquement</div>', unsafe_allow_html=True)
@@ -298,6 +351,13 @@ with tab1:
                         </p>
                     </div>
                     """, unsafe_allow_html=True)
+                    
+                    # Comparaison avec le signal attendu
+                    if "Synthétique" in input_mode:
+                        if predicted_stage == stage_demo:
+                            st.success(f"✅ **Prédiction correcte !** Le modèle a bien identifié le stade {stage_demo}")
+                        else:
+                            st.warning(f"⚠️ **Prédiction incorrecte** : Attendu {stage_demo}, prédit {predicted_stage}")
                     
                     # Interprétation clinique
                     st.markdown("#### 📋 Interprétation Clinique")
@@ -471,10 +531,9 @@ with tab4:
     
     st.markdown("""
     ### 🏗️ Architecture du Système
-    
-    ```
+```
     [Dashboard Streamlit] --REST API--> [FastAPI Server] --> [Random Forest Model]
-    ```
+```
     
     ### 🤖 Modèle de Machine Learning
     

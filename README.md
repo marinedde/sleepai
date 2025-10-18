@@ -4,6 +4,8 @@
 
 **Technologies :** Python 3.10 | FastAPI | Docker | Scikit-learn | GitHub Actions
 
+**🌐 API Déployée :** [https://sleepai-api.onrender.com](https://sleepai-api.onrender.com/docs)
+
 ---
 
 ## 📋 Table des matières

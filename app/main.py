@@ -28,7 +28,7 @@ model: SleepStageClassifier = None
 
 # Chemin absolu du modèle
 PROJECT_ROOT = Path(__file__).parent.parent  # Remonte de app/ vers sleepai/
-MODEL_PATH = PROJECT_ROOT / "models" / "rf_v2_pipeline_fixed_v2.joblib"
+MODEL_PATH = PROJECT_ROOT / "models" / "rf_v2_final_pipeline.joblib"
 
 
 @asynccontextmanager

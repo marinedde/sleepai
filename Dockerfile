@@ -16,5 +16,5 @@ COPY . .
 # Exposer le port 8000
 EXPOSE 8000
 
-# Commande pour lancer l'API
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Commande pour lancer l'API (utilise $PORT si défini, sinon 8000)
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}

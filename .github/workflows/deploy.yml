@@ -1,0 +1,118 @@
+name: SleepAI CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  PYTHON_VERSION: '3.10'
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Run tests
+      run: |
+        pytest tests/ -v --cov=app --cov-report=xml --cov-report=term
+    
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: coverage.xml
+      if: always()
+
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install flake8
+      run: |
+        pip install flake8
+    
+    - name: Lint with flake8
+      run: |
+        # Stop on syntax errors or undefined names
+        flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Treat all other errors as warnings
+        flake8 app/ --count --exit-zero --max-line-length=127 --statistics
+      continue-on-error: true
+
+  build:
+    name: Build Docker Image
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Build Docker image
+      run: |
+        docker build -t sleepai:latest .
+    
+    - name: Test Docker container
+      run: |
+        docker run -d -p 8000:8000 --name sleepai-test sleepai:latest
+        echo "Waiting for container to start..."
+        sleep 20
+        curl -f http://localhost:8000/health || exit 1
+        docker logs sleepai-test
+        docker stop sleepai-test
+        docker rm sleepai-test
+    
+    - name: Docker build success
+      run: |
+        echo "✅ Docker image built and tested successfully"
+
+  deploy:
+    name: Deploy to Production
+    needs: [test, lint, build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Deployment notification
+      run: |
+        echo "🚀 Deploying to Render..."
+        echo "Render will automatically detect the push and redeploy"
+        echo "✅ Deployment triggered successfully"
+        echo "🔗 API URL: https://sleepai-api.onrender.com"

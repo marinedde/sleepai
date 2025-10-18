@@ -1,29 +1,57 @@
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
 venv/
 env/
+ENV/
+.venv
 
-# Data (trop gros)
-data/raw/*
-data/processed/*
-!data/raw/.gitkeep
-!data/processed/.gitkeep
-
-# Models
-models/*.pkl
-models/*.h5
-!models/.gitkeep
-
-# Jupyter
-.ipynb_checkpoints/
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints
 
 # IDE
 .vscode/
+.idea/
+*.swp
+*.swo
 .DS_Store
 
-# Secrets
-.env
+# Data files (gros fichiers à ne pas versionner)
+*.h5
+*.hdf5
+*.edf
+*.csv
+data/raw/*
+!data/raw/.gitkeep
 
-# MLflow
-mlruns/
+# Mais on GARDE les modèles sérialisés (ils sont essentiels)
+# donc on ne met PAS *.pkl ou *.joblib ici
+
+# Logs
+*.log
+logs/
+
+# Docker
+.dockerignore
+
+# Environment variables
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/

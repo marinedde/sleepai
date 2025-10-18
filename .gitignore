@@ -65,3 +65,16 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/notebooks/models/
+
+echo "
+# Test coverage
+.coverage*
+htmlcov/
+
+# Temporary models
+models/*_production_*.joblib
+models/*_v3_*.joblib
+
+# Scripts temporaires
+create_*.py
+" >> .gitignore

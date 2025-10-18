@@ -30,11 +30,21 @@ ENV/
 *.hdf5
 *.edf
 *.csv
+*.npy
+*.npz
 data/raw/*
+data/processed/*
 !data/raw/.gitkeep
+!data/processed/.gitkeep
 
 # Mais on GARDE les modèles sérialisés (ils sont essentiels)
-# donc on ne met PAS *.pkl ou *.joblib ici
+# On versionne seulement le pipeline utilisé en production
+models/random_forest_baseline.pkl
+models/random_forest_v2_features.pkl
+models/rf_v3_final.pkl
+models/cnn_best_model.h5
+
+# Le seul modèle qu'on garde : rf_v2_pipeline.joblib (utilisé par l'API)
 
 # Logs
 *.log

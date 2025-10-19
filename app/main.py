@@ -10,6 +10,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 import numpy as np
 import logging
+from app.monitoring import SimpleMonitor
+import time
+
+# Initialiser le monitor
+monitor = SimpleMonitor()
 
 from app.models import (
     PredictionRequest,
@@ -100,6 +105,8 @@ async def root():
             "prediction": "/predict",
             "health": "/health",
             "model_info": "/model-info",
+            "monitoring_stats": "/monitoring/stats",
+            "monitoring_drift": "/monitoring/drift",
             "documentation": "/docs"
         }
     }
@@ -159,16 +166,9 @@ async def predict_sleep_stage(request: PredictionRequest):
     - **predicted_index**: Index de la classe (0-4)
     - **confidence**: Confiance de la prédiction (0-1)
     - **probabilities**: Probabilités pour chaque classe
-    
-    ## Exemple
-```python
-    import requests
-    
-    signal = [0.5, -0.2, 1.3, ...] # 3000 valeurs
-    response = requests.post("http://localhost:8000/predict", json={"signal": signal})
-    print(response.json())
-```
     """
+    start_time = time.time()
+    
     # Vérifier que le modèle est chargé
     if model is None or not model.is_loaded():
         raise HTTPException(
@@ -183,6 +183,16 @@ async def predict_sleep_stage(request: PredictionRequest):
         # Faire la prédiction
         predicted_class, predicted_index, confidence, probabilities = model.predict(signal_array)
         
+        # Logger la prédiction
+        processing_time = (time.time() - start_time) * 1000  # en ms
+        monitor.log_prediction(
+            signal=request.signal,
+            prediction=predicted_class,
+            confidence=confidence,
+            probabilities=probabilities,
+            processing_time=processing_time
+        )
+        
         # Retourner la réponse
         return PredictionResponse(
             predicted_class=predicted_class,
@@ -192,17 +202,78 @@ async def predict_sleep_stage(request: PredictionRequest):
         )
         
     except ValueError as e:
-        # Erreur de validation du signal
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Signal invalide: {str(e)}"
         )
     except Exception as e:
-        # Erreur interne
         logger.error(f"Erreur lors de la prédiction: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur interne: {str(e)}"
+        )
+
+
+# ============================================================================
+# ENDPOINTS MONITORING
+# ============================================================================
+
+@app.get("/monitoring/stats", tags=["Monitoring"])
+async def get_monitoring_stats(last_n: int = 100):
+    """
+    Obtenir les statistiques de monitoring.
+    
+    Retourne les statistiques des N dernières prédictions :
+    - Distribution des classes prédites
+    - Statistiques de confiance
+    - Temps de traitement moyen
+    """
+    try:
+        return monitor.get_statistics(last_n)
+    except Exception as e:
+        logger.error(f"Erreur monitoring stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.get("/monitoring/drift", tags=["Monitoring"])
+async def check_drift(threshold: float = 0.1, window_size: int = 50):
+    """
+    Vérifier s'il y a une dérive du modèle.
+    
+    Compare les performances récentes avec les performances passées
+    pour détecter une potentielle dégradation du modèle.
+    
+    - **threshold**: Seuil de détection de drift (0-1)
+    - **window_size**: Taille de la fenêtre d'analyse
+    """
+    try:
+        return monitor.detect_drift(threshold, window_size)
+    except Exception as e:
+        logger.error(f"Erreur drift detection: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.get("/monitoring/recent", tags=["Monitoring"])
+async def get_recent_predictions(n: int = 10):
+    """
+    Obtenir les N dernières prédictions.
+    
+    Retourne l'historique détaillé des dernières prédictions
+    avec timestamps et métriques.
+    """
+    try:
+        return {"predictions": monitor.get_recent_logs(n)}
+    except Exception as e:
+        logger.error(f"Erreur recent predictions: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
         )
 
 

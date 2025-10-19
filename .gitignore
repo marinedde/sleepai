@@ -78,3 +78,5 @@ models/*_v3_*.joblib
 # Scripts temporaires
 create_*.py
 " >> .gitignore
+logs/
+*.jsonl

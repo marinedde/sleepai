@@ -82,12 +82,12 @@ jobs:
           file: coverage.xml
           fail_ci_if_error: false
 
-  # ── Job 2 : Build Docker (desactive — a reactiver apres deploiement) ────
+  # ── Job 2 : Build Docker (desactive — a reactiver apres validation) ──────
   docker-build:
     name: Build Docker
     runs-on: ubuntu-latest
     needs: test
-    if: false
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout code
@@ -161,7 +161,6 @@ jobs:
           token = os.environ['HF_TOKEN']
           space = os.environ['HF_SPACE_API']
 
-          # Utiliser requirements-api.txt comme requirements.txt pour le Space
           shutil.copy('requirements-api.txt', 'requirements.txt')
 
           api.upload_folder(
@@ -172,11 +171,12 @@ jobs:
               ignore_patterns = [
                   '.git*', '__pycache__', '*.pyc',
                   'tests/', 'notebooks/', 'data/',
-                  'dashboard.py', 'app.py', 'mlruns/',
+                  'streamlit_app.py', 'app.py', 'mlruns/',
                   'venv/', '.github/',
                   'requirements-api.txt',
                   'requirements-dashboard.txt',
                   'requirements-dev.txt',
+                  'python_scripts/',
                   '.DS_Store',
               ],
           )
@@ -214,10 +214,6 @@ jobs:
           token = os.environ['HF_TOKEN']
           space = os.environ['HF_SPACE_DASH']
 
-          # Renommer dashboard.py → app.py pour HuggingFace Streamlit
-          shutil.copy('dashboard.py', 'app.py')
-
-          # Utiliser requirements-dashboard.txt comme requirements.txt
           shutil.copy('requirements-dashboard.txt', 'requirements.txt')
 
           api.upload_folder(
@@ -230,13 +226,14 @@ jobs:
                   'tests/', 'notebooks/',
                   'data/raw/', 'data/raw_apnea/',
                   'data/processed/',
+                  'data/figures/',
                   'mlruns/', 'venv/', '.github/',
                   'Dockerfile',
                   'app/', 'models/',
                   'requirements-api.txt',
                   'requirements-dashboard.txt',
                   'requirements-dev.txt',
-                  'dashboard.py',
+                  'python_scripts/',
                   '.DS_Store',
               ],
           )

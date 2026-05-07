@@ -1,0 +1,7 @@
+# SleepAI — Requirements Dashboard
+streamlit==1.37.0
+requests==2.33.1
+matplotlib==3.9.2
+numpy==1.26.4
+pandas==2.2.2
+python-dotenv==1.0.1

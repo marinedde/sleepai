@@ -1,0 +1,13 @@
+# API
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+pydantic==2.9.0
+
+# ML — versions avec wheels précompilés Python 3.13
+scikit-learn==1.5.2
+numpy==2.0.0
+scipy==1.14.0
+joblib==1.4.2
+
+# Monitoring
+python-dotenv==1.0.1

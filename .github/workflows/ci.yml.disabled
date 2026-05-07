@@ -1,0 +1,258 @@
+# SleepAI — CI/CD Pipeline
+# Tests → Deploy API → Deploy Dashboard
+
+name: SleepAI CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  PYTHON_VERSION: "3.10"
+  HF_SPACE_API:   "marinedde/sleepai-api"
+  HF_SPACE_DASH:  "marinedde/sleepai-dashboard"
+
+jobs:
+
+  # ── Job 1 : Tests ────────────────────────────────────────────────────────
+  test:
+    name: Tests & Qualité
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-api.txt
+          pip install pytest pytest-cov httpx
+
+      - name: Create dummy models for tests
+        run: |
+          python - << 'PYEOF'
+          import joblib, numpy as np
+          from sklearn.pipeline import Pipeline
+          from sklearn.preprocessing import StandardScaler
+          from sklearn.ensemble import RandomForestClassifier
+          from pathlib import Path
+
+          Path('models').mkdir(exist_ok=True)
+
+          pipe_eeg = Pipeline([
+              ('scaler', StandardScaler()),
+              ('clf', RandomForestClassifier(n_estimators=2, random_state=42))
+          ])
+          X = np.random.randn(50, 16)
+          pipe_eeg.fit(X, np.random.randint(0, 5, 50))
+          joblib.dump(pipe_eeg, 'models/sleepai_eeg_pipeline.joblib')
+
+          pipe_ecg = Pipeline([
+              ('scaler', StandardScaler()),
+              ('clf', RandomForestClassifier(n_estimators=2, random_state=42))
+          ])
+          pipe_ecg.fit(X, np.random.randint(0, 2, 50))
+          joblib.dump(pipe_ecg, 'models/sleepai_ecg_pipeline.joblib')
+
+          print('Dummy models crees')
+          PYEOF
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            -v \
+            --tb=short
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: coverage.xml
+          fail_ci_if_error: false
+
+  # ── Job 2 : Build Docker (desactive — a reactiver apres deploiement) ────
+  docker-build:
+    name: Build Docker
+    runs-on: ubuntu-latest
+    needs: test
+    if: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies for dummy models
+        run: pip install joblib scikit-learn numpy
+
+      - name: Create dummy models for build
+        run: |
+          python - << 'PYEOF'
+          import joblib, numpy as np
+          from sklearn.pipeline import Pipeline
+          from sklearn.preprocessing import StandardScaler
+          from sklearn.ensemble import RandomForestClassifier
+          from pathlib import Path
+
+          Path('models').mkdir(exist_ok=True)
+          pipe = Pipeline([('scaler', StandardScaler()),
+                           ('clf', RandomForestClassifier(n_estimators=2))])
+          X = np.random.randn(20, 16)
+          pipe.fit(X, np.random.randint(0, 5, 20))
+          joblib.dump(pipe, 'models/sleepai_eeg_pipeline.joblib')
+          pipe.fit(X, np.random.randint(0, 2, 20))
+          joblib.dump(pipe, 'models/sleepai_ecg_pipeline.joblib')
+          print('Dummy models crees')
+          PYEOF
+
+      - name: Build Docker image
+        run: |
+          cp requirements-api.txt requirements.txt
+          docker build -t sleepai-api:latest .
+          echo "Docker build OK"
+
+      - name: Test Docker container
+        run: |
+          docker run -d --name sleepai-test -p 7860:7860 sleepai-api:latest
+          sleep 15
+          curl -f http://localhost:7860/health || (docker logs sleepai-test && exit 1)
+          docker stop sleepai-test
+          echo "Container health check OK"
+
+  # ── Job 3 : Deploy API → HuggingFace ────────────────────────────────────
+  deploy-api:
+    name: Deploy API → HuggingFace
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install huggingface_hub
+        run: pip install huggingface_hub
+
+      - name: Deploy API to HuggingFace
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - << 'PYEOF'
+          from huggingface_hub import HfApi
+          import os, shutil
+
+          api   = HfApi()
+          token = os.environ['HF_TOKEN']
+          space = os.environ['HF_SPACE_API']
+
+          # Utiliser requirements-api.txt comme requirements.txt pour le Space
+          shutil.copy('requirements-api.txt', 'requirements.txt')
+
+          api.upload_folder(
+              folder_path  = '.',
+              repo_id      = space,
+              repo_type    = 'space',
+              token        = token,
+              ignore_patterns = [
+                  '.git*', '__pycache__', '*.pyc',
+                  'tests/', 'notebooks/', 'data/',
+                  'dashboard.py', 'app.py', 'mlruns/',
+                  'venv/', '.github/',
+                  'requirements-api.txt',
+                  'requirements-dashboard.txt',
+                  'requirements-dev.txt',
+                  '.DS_Store',
+              ],
+          )
+          print(f'API deployee : https://huggingface.co/spaces/{space}')
+          PYEOF
+
+  # ── Job 4 : Deploy Dashboard → HuggingFace ──────────────────────────────
+  deploy-dashboard:
+    name: Deploy Dashboard → HuggingFace
+    runs-on: ubuntu-latest
+    needs: [ test, deploy-api ]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install huggingface_hub
+        run: pip install huggingface_hub
+
+      - name: Deploy Dashboard to HuggingFace
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - << 'PYEOF'
+          from huggingface_hub import HfApi
+          import os, shutil
+
+          api   = HfApi()
+          token = os.environ['HF_TOKEN']
+          space = os.environ['HF_SPACE_DASH']
+
+          # Renommer dashboard.py → app.py pour HuggingFace Streamlit
+          shutil.copy('dashboard.py', 'app.py')
+
+          # Utiliser requirements-dashboard.txt comme requirements.txt
+          shutil.copy('requirements-dashboard.txt', 'requirements.txt')
+
+          api.upload_folder(
+              folder_path  = '.',
+              repo_id      = space,
+              repo_type    = 'space',
+              token        = token,
+              ignore_patterns = [
+                  '.git*', '__pycache__', '*.pyc',
+                  'tests/', 'notebooks/',
+                  'data/raw/', 'data/raw_apnea/',
+                  'data/processed/',
+                  'mlruns/', 'venv/', '.github/',
+                  'Dockerfile',
+                  'app/', 'models/',
+                  'requirements-api.txt',
+                  'requirements-dashboard.txt',
+                  'requirements-dev.txt',
+                  'dashboard.py',
+                  '.DS_Store',
+              ],
+          )
+          print(f'Dashboard deploye : https://huggingface.co/spaces/{space}')
+          PYEOF
+
+  # ── Notification ─────────────────────────────────────────────────────────
+  notify:
+    name: Resume deploiement
+    runs-on: ubuntu-latest
+    needs: [ deploy-api, deploy-dashboard ]
+    if: always() && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Resume
+        run: |
+          echo "SleepAI - Deploiement termine"
+          echo "API       : https://huggingface.co/spaces/${{ env.HF_SPACE_API }}"
+          echo "Dashboard : https://huggingface.co/spaces/${{ env.HF_SPACE_DASH }}"

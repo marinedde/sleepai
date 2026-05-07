@@ -1,0 +1,105 @@
+"""
+Détecteur d'apnée du sommeil (ECG).
+
+Note : le pipeline sauvegardé contient StandardScaler + RF uniquement.
+L'extraction des features ECG est faite ici avant d'appeler le pipeline.
+"""
+
+import joblib
+import numpy as np
+from pathlib import Path
+from typing import Tuple, Dict
+import logging
+
+from app.ecg_features import ECGFeatureExtractor
+
+logger = logging.getLogger(__name__)
+
+# Extracteur ECG
+_ecg_extractor = ECGFeatureExtractor(fs=100, expected_len=6000)
+
+
+class ApneaDetector:
+    """
+    Détecteur ECG — Apnée du sommeil (classification binaire).
+
+    Flux :
+        signal brut (6000,) → ECGFeatureExtractor → 16 features → pipeline sklearn
+    """
+
+    CLASS_NAMES = {
+        0: 'Normal',
+        1: 'Apnée',
+    }
+
+    MODEL_METADATA = {
+        'model_type'   : 'Random Forest + Feature Engineering (16 features ECG)',
+        'auc_roc'      : 0.9671,
+        'f1_apnea'     : 0.8785,
+        'n_features'   : 16,
+        'training_date': '2026-05-07',
+        'dataset'      : 'Apnea-ECG (PhysioNet) — 35 sujets',
+        'note'         : 'AUC=0.70 en validation inter-sujets',
+    }
+
+    def __init__(self, model_path: str):
+        self.model_path = Path(model_path)
+        self.pipeline   = None
+        self._load()
+
+    def _load(self):
+        if not self.model_path.exists():
+            raise FileNotFoundError(f"Modèle ECG non trouvé : {self.model_path}")
+        logger.info(f"Chargement modèle ECG : {self.model_path}")
+        self.pipeline = joblib.load(self.model_path)
+        logger.info("Modèle ECG chargé")
+
+    def _get_risk(self, confidence: float, predicted_class: str) -> Tuple[str, str]:
+        if predicted_class == 'Normal':
+            if confidence >= 0.85:
+                return 'Faible', "Respiration normale détectée avec haute confiance."
+            else:
+                return 'Modéré', "Respiration probablement normale — signal ambigu."
+        else:
+            if confidence >= 0.80:
+                return 'Élevé', "Apnée probable — consultation médicale recommandée."
+            else:
+                return 'Modéré', "Possible apnée détectée — surveillance conseillée."
+
+    def predict(
+        self, signal: np.ndarray
+    ) -> Tuple[str, int, float, Dict[str, float], str, str]:
+        signal = np.asarray(signal, dtype=np.float32)
+        if signal.ndim == 1:
+            signal = signal.reshape(1, -1)
+        if signal.shape[1] != 6000:
+            raise ValueError(
+                f"Signal ECG doit contenir 6000 points, reçu {signal.shape[1]}"
+            )
+
+        # Extraction des 16 features depuis le signal brut
+        features = _ecg_extractor.transform(signal)  # (1, 16)
+
+        # Prédiction via pipeline (StandardScaler + RF)
+        pred_idx      = int(self.pipeline.predict(features)[0])
+        pred_class    = self.CLASS_NAMES[pred_idx]
+        proba_arr     = self.pipeline.predict_proba(features)[0]
+        confidence    = float(np.max(proba_arr))
+        probabilities = {
+            self.CLASS_NAMES[i]: float(p)
+            for i, p in enumerate(proba_arr)
+        }
+        risk_level, recommendation = self._get_risk(confidence, pred_class)
+
+        logger.info(f"ECG → {pred_class} (confiance : {confidence:.2%} | risque : {risk_level})")
+        return pred_class, pred_idx, confidence, probabilities, risk_level, recommendation
+
+    def get_info(self) -> dict:
+        return {
+            **self.MODEL_METADATA,
+            'classes'     : list(self.CLASS_NAMES.values()),
+            'model_loaded': self.is_loaded(),
+        }
+
+    def is_loaded(self) -> bool:
+        return self.pipeline is not None

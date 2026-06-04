@@ -56,8 +56,9 @@ sleepai/
 
 **📈 Monitoring**
 - Statistiques d'utilisation en temps réel
-- Détection de drift du modèle
+- Drift de confiance + drift des features (vs baseline d'entraînement)
 - Historique des dernières prédictions
+- Validations médecin persistées (`POST /validations`)
 
 ---
 
@@ -78,6 +79,27 @@ sleepai/
 - **Endpoint** : `POST /predict/apnea`
 
 **Tracking** : MLflow
+
+---
+
+## 🔄 Réentraînement automatisé
+
+Après le preprocessing (`notebooks/02_preprocessing.ipynb`) :
+
+```bash
+python python_scripts/retrain.py              # EEG + ECG
+python python_scripts/retrain.py --task eeg   # EEG seul
+python python_scripts/retrain.py --dry-run    # Vérifier les données
+```
+
+Produit :
+- `models/sleepai_eeg_pipeline.joblib` / `models/sleepai_ecg_pipeline.joblib`
+- `models/baseline_stats.json` — référence pour le drift des features
+- `models/training_metrics.json` — métriques val/test
+
+Seuils par défaut : accuracy EEG ≥ 0.75, AUC ECG ≥ 0.65 (sinon le script refuse de déployer).
+
+Workflow GitHub manuel : `.github/workflows/retrain.yml`
 
 ---
 

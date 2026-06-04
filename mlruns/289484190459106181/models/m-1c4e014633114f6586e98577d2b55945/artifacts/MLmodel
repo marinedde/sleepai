@@ -1,0 +1,24 @@
+artifact_path: file:///Users/marinedeldicque/Library/Mobile Documents/com~apple~CloudDocs/JEDHA/DATA
+  SCIENCE LEAD/aia/bloc 4 projet final/sleepai/notebooks/../mlruns/289484190459106181/models/m-1c4e014633114f6586e98577d2b55945/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.13.5
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.8.0
+    skops_trusted_types: null
+mlflow_version: 3.12.0
+model_id: m-1c4e014633114f6586e98577d2b55945
+model_size_bytes: 5148001
+model_uuid: m-1c4e014633114f6586e98577d2b55945
+prompts: null
+run_id: 12792dc4f84f4713baba2a078bc2d32e
+utc_time_created: '2026-05-06 12:05:00.679617'

@@ -94,6 +94,13 @@ class ApneaDetector:
         logger.info(f"ECG → {pred_class} (confiance : {confidence:.2%} | risque : {risk_level})")
         return pred_class, pred_idx, confidence, probabilities, risk_level, recommendation
 
+    def extract_features(self, signal: np.ndarray) -> np.ndarray:
+        """Retourne le vecteur de features (1, 16) pour monitoring / drift."""
+        signal = np.asarray(signal, dtype=np.float32)
+        if signal.ndim == 1:
+            signal = signal.reshape(1, -1)
+        return _ecg_extractor.transform(signal)
+
     def get_info(self) -> dict:
         return {
             **self.MODEL_METADATA,

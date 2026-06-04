@@ -1,0 +1,46 @@
+# Réentraînement manuel SleepAI (nécessite data/processed/ sur le runner ou self-hosted)
+
+name: SleepAI Retrain
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Modèle à réentraîner"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - eeg
+          - ecg
+
+jobs:
+  retrain:
+    name: Réentraînement modèles
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-api.txt
+
+      - name: Réentraîner
+        run: |
+          python python_scripts/retrain.py --task ${{ github.event.inputs.task }}
+
+      - name: Upload artefacts (modèles + baseline)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sleepai-models
+          path: |
+            models/*.joblib
+            models/baseline_stats.json
+            models/training_metrics.json

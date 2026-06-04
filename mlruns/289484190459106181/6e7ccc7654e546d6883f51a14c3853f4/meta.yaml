@@ -1,0 +1,15 @@
+artifact_uri: file:///Users/marinedeldicque/Library/Mobile Documents/com~apple~CloudDocs/JEDHA/DATA
+  SCIENCE LEAD/aia/bloc 4 projet final/sleepai/notebooks/../mlruns/289484190459106181/6e7ccc7654e546d6883f51a14c3853f4/artifacts
+end_time: 1778105277867
+entry_point_name: ''
+experiment_id: '289484190459106181'
+lifecycle_stage: active
+run_id: 6e7ccc7654e546d6883f51a14c3853f4
+run_name: ECG_RF_apnea
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1778105260447
+status: 3
+tags: []
+user_id: marinedeldicque

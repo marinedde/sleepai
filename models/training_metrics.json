@@ -1,0 +1,19 @@
+{
+  "training_date": "2026-06-04",
+  "eeg": null,
+  "ecg": {
+    "task": "ecg",
+    "model_path": "models/sleepai_ecg_pipeline.joblib",
+    "val": {
+      "accuracy": 0.8994265549183944,
+      "f1_apnea": 0.8714768883878241,
+      "auc_roc": 0.9647426876705153
+    },
+    "test": {
+      "accuracy": 0.9025573192239859,
+      "f1_apnea": 0.8778330569375346,
+      "auc_roc": 0.9670508672963438
+    },
+    "report_test": "              precision    recall  f1-score   support\n\n           0       0.92      0.91      0.92      1370\n           1       0.87      0.88      0.88       898\n\n    accuracy                           0.90      2268\n   macro avg       0.90      0.90      0.90      2268\nweighted avg       0.90      0.90      0.90      2268\n"
+  }
+}

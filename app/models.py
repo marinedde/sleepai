@@ -135,3 +135,32 @@ class MonitoringStatsResponse(BaseModel):
     avg_confidence       : Optional[float]
     avg_processing_time_ms: Optional[float]
     class_distribution   : Dict[str, int]
+
+
+class ClinicalValidationRequest(BaseModel):
+    """Validation médecin sur une prédiction SleepAI."""
+    task: str = Field(..., description="sleep_stage ou apnea")
+    model_prediction: str
+    model_confidence: float = Field(..., ge=0.0, le=1.0)
+    clinician_verdict: str = Field(
+        ..., description="Confirmé, Incorrect ou Ambigu"
+    )
+    comment: str = ""
+    extra: Optional[Dict] = None
+
+    @field_validator('task')
+    @classmethod
+    def check_task(cls, v):
+        if v not in ('sleep_stage', 'apnea'):
+            raise ValueError("task doit être 'sleep_stage' ou 'apnea'")
+        return v
+
+
+class ClinicalValidationResponse(BaseModel):
+    id: str
+    timestamp: str
+    task: str
+    model_prediction: str
+    model_confidence: float
+    clinician_verdict: str
+    comment: str

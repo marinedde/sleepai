@@ -36,8 +36,9 @@ class SimpleMonitor:
         confidence    : float,
         probabilities : Dict[str, float],
         processing_time_ms: float,
+        features      : Optional[np.ndarray] = None,
     ) -> None:
-        """Enregistre une prédiction."""
+        """Enregistre une prédiction (features optionnelles pour drift)."""
         entry = {
             'timestamp' : datetime.now(timezone.utc).isoformat(),
             'task'             : task,
@@ -46,6 +47,8 @@ class SimpleMonitor:
             'probabilities'    : probabilities,
             'processing_time_ms': round(processing_time_ms, 2),
         }
+        if features is not None:
+            entry['features'] = np.asarray(features, dtype=np.float32).reshape(-1).tolist()
         self._logs.append(entry)
         # Garder seulement les MAX_LOGS derniers
         if len(self._logs) > self.MAX_LOGS:
@@ -139,6 +142,17 @@ class SimpleMonitor:
     def get_recent_logs(self, n: int = 10) -> List[dict]:
         """Retourne les N dernières prédictions."""
         return self._logs[-n:]
+
+    def get_recent_features(self, task: str, n: int = 50) -> Optional[np.ndarray]:
+        """Dernières features enregistrées pour une tâche."""
+        rows = [
+            log['features']
+            for log in self._logs
+            if log.get('task') == task and 'features' in log
+        ]
+        if not rows:
+            return None
+        return np.array(rows[-n:], dtype=np.float32)
 
     def reset(self) -> None:
         """Réinitialise les logs."""

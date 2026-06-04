@@ -174,6 +174,30 @@ def call_api(endpoint, signal):
         return False, {"error": str(e)}
 
 
+def save_validation(task, result, verdict, comment, extra=None):
+    """Persiste la validation clinique via l'API (audit trail)."""
+    verdict_map = {
+        "✅ Confirmé": "Confirmé",
+        "❌ Incorrect": "Incorrect",
+        "⚠️ Ambigu": "Ambigu",
+    }
+    payload = {
+        "task": task,
+        "model_prediction": result["predicted_class"],
+        "model_confidence": result["confidence"],
+        "clinician_verdict": verdict_map.get(verdict, verdict),
+        "comment": comment or "",
+        "extra": extra or {},
+    }
+    try:
+        r = requests.post(f"{API_URL}/validations", json=payload, timeout=10)
+        if r.status_code == 200:
+            return True, r.json().get("id", "")
+        return False, r.text
+    except Exception as e:
+        return False, str(e)
+
+
 def pb_html(probs, cmap):
     html = ""
     for label, prob in sorted(probs.items(), key=lambda x: x[1], reverse=True):
@@ -271,20 +295,25 @@ def generate_report(eeg_result, ecg_result, patient_info):
                      f"risque {ecg_result.get('risk_level','')}. "
                      f"{ecg_result.get('recommendation','')}")
 
-    prompt = f"""Tu es un assistant médical spécialisé en médecine du sommeil.
-Génère un rapport clinique structuré et professionnel en français :
+    prompt = f"""Tu es un assistant de synthèse pour médecins du sommeil (aide à la décision uniquement).
+Génère un brouillon structuré en français à partir des sorties algorithmiques :
 
 {chr(10).join(parts)}
 
-Structure :
-1. **Résumé exécutif** (2-3 phrases)
-2. **Analyse EEG** : interprétation du stade, signification clinique
-3. **Analyse ECG** : interprétation apnée, niveau de risque
-4. **Corrélation clinique** : lien entre les deux analyses
-5. **Recommandations** : actions pour le médecin
-6. **Limites** : rappel outil d'aide à la décision
+RÈGLES STRICTES :
+- Ne pose PAS de diagnostic définitif.
+- Ne prescris AUCUN médicament ni traitement.
+- Formule des hypothèses et points à vérifier par le médecin.
+- Rappelle que l'outil ne remplace pas la polysomnographie.
 
-Style : précis, professionnel, médical. Maximum 400 mots."""
+Structure :
+1. **Résumé** (2-3 phrases, factuel)
+2. **Analyse EEG** : stade prédit et limites
+3. **Analyse ECG** : signal algorithmique (pas un AHI clinique)
+4. **Points de vigilance** pour le spécialiste
+5. **Limites de l'outil**
+
+Maximum 350 mots."""
 
     if api_key:
         try:
@@ -610,7 +639,13 @@ elif page == "🧠 Analyse EEG":
             st.text_area("Commentaire", key="com_eeg", height=68,
                          placeholder="Qualité du signal, artéfacts observés...")
             if st.button("Enregistrer validation EEG"):
-                st.success(f"Validation enregistrée : {val}")
+                ok_v, vid = save_validation(
+                    "sleep_stage", r, val, st.session_state.get("com_eeg", "")
+                )
+                if ok_v:
+                    st.success(f"Validation enregistrée ({val}) — audit #{vid[:8]}…")
+                else:
+                    st.warning(f"Validation locale seulement (API : {vid})")
         else:
             st.markdown("""
             <div style='background:#F8F9FA;border-radius:12px;padding:3rem;
@@ -760,16 +795,28 @@ elif page == "❤️ Analyse ECG":
 
             with st.expander("📋 Données cliniques complémentaires"):
                 ca,cb = st.columns(2)
-                spo2 = ca.number_input("SpO₂ min nocturne (%)", 60, 100, 88)
-                ahi  = ca.number_input("AHI PSG (si dispo)", 0.0, 150.0, 0.0)
-                cb.checkbox("Ronflement signalé")
-                cb.selectbox("Somnolence diurne",
-                             ["Absente","Légère","Modérée","Sévère"])
+                spo2 = ca.number_input("SpO₂ min nocturne (%)", 60, 100, 88, key="spo2_clin")
+                ahi  = ca.number_input("AHI PSG (si dispo)", 0.0, 150.0, 0.0, key="ahi_clin")
+                snore = cb.checkbox("Ronflement signalé", key="snore_clin")
+                somn = cb.selectbox("Somnolence diurne",
+                             ["Absente","Légère","Modérée","Sévère"], key="somn_clin")
 
             st.text_area("Commentaire", key="com_ecg", height=68,
                          placeholder="IMC élevé, ronflement confirmé par conjoint...")
             if st.button("Enregistrer validation ECG"):
-                st.success(f"Validation enregistrée : {val_ecg}")
+                extra = {
+                    "spo2_min": st.session_state.get("spo2_clin"),
+                    "ahi_psg": st.session_state.get("ahi_clin"),
+                    "ronflement": st.session_state.get("snore_clin"),
+                    "somnolence": st.session_state.get("somn_clin"),
+                }
+                ok_v, vid = save_validation(
+                    "apnea", r, val_ecg, st.session_state.get("com_ecg", ""), extra
+                )
+                if ok_v:
+                    st.success(f"Validation enregistrée ({val_ecg}) — audit #{vid[:8]}…")
+                else:
+                    st.warning(f"Validation locale seulement (API : {vid})")
 
         else:
             st.markdown("""
@@ -924,10 +971,25 @@ elif page == "📈 Monitoring":
 
             st.markdown('<div class="stitle">Détection de drift</div>',
                         unsafe_allow_html=True)
-            if drift.get('drift_detected'):
-                st.error(f"⚠️ {drift.get('message')}")
-            else:
-                st.success(f"✅ {drift.get('message','Pas de drift détecté')}")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.caption("Drift de confiance")
+                if drift.get('drift_detected'):
+                    st.error(f"⚠️ {drift.get('message')}")
+                else:
+                    st.success(f"✅ {drift.get('message','Stable')}")
+            with c2:
+                st.caption("Drift des features (vs entraînement)")
+                try:
+                    drift_f = requests.get(
+                        f"{API_URL}/monitoring/drift/features?task=sleep_stage"
+                    ).json()
+                    if drift_f.get('drift_detected'):
+                        st.error(f"⚠️ EEG — {drift_f.get('message')}")
+                    else:
+                        st.success(f"✅ EEG — {drift_f.get('message','Stable')}")
+                except Exception:
+                    st.info("Features drift — API indisponible")
 
             preds = recent.get('predictions',[])
             if preds:

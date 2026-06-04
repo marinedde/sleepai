@@ -1,0 +1,11 @@
+artifact_location: file:///Users/marinedeldicque/Library/Mobile Documents/com~apple~CloudDocs/JEDHA/DATA
+  SCIENCE LEAD/aia/bloc 4 projet final/sleepai/notebooks/../mlruns/289484190459106181/models/m-c9f3bb979b804d23b9fef9593ac4cb96/artifacts
+creation_timestamp: 1778105252754
+experiment_id: '289484190459106181'
+last_updated_timestamp: 1778105254824
+model_id: m-c9f3bb979b804d23b9fef9593ac4cb96
+model_type: null
+name: pipeline_eeg_production
+source_run_id: ce8888974cd94bed912e56b0db1804bf
+status: 2
+status_message: null

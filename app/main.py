@@ -21,10 +21,13 @@ from app.models import (
     SleepStageRequest, SleepStageResponse,
     ApneaRequest,      ApneaResponse,
     HealthResponse,    ModelInfoResponse,
+    ClinicalValidationRequest, ClinicalValidationResponse,
 )
 from app.ml_model    import SleepStageClassifier
 from app.apnea_model import ApneaDetector
 from app.monitoring  import SimpleMonitor
+from app.validation_store import ValidationStore
+from app.baseline import compare_features
 
 # ─── Logging ────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +42,7 @@ ECG_MODEL_PATH = PROJECT_ROOT / "models" / "sleepai_ecg_pipeline.joblib"
 eeg_model : SleepStageClassifier = None
 ecg_model : ApneaDetector        = None
 monitor   : SimpleMonitor        = SimpleMonitor()
+validations: ValidationStore     = ValidationStore()
 
 
 # ─── Lifespan ────────────────────────────────────────────────────────────────
@@ -117,6 +121,7 @@ async def root():
             "health"      : "GET  /health",
             "model_info"  : "GET  /model-info",
             "monitoring"  : "GET  /monitoring/stats",
+            "validations" : "POST /validations",
             "docs"        : "GET  /docs",
         }
     }
@@ -193,6 +198,7 @@ async def predict_sleep_stage(request: SleepStageRequest):
         signal = np.array(request.signal, dtype=np.float32).reshape(1, -1)
         pred_class, pred_idx, confidence, probabilities, interpretation = \
             eeg_model.predict(signal)
+        features = eeg_model.extract_features(signal)
 
         processing_ms = (time.time() - start) * 1000
         monitor.log_prediction(
@@ -201,6 +207,7 @@ async def predict_sleep_stage(request: SleepStageRequest):
             confidence        = confidence,
             probabilities     = probabilities,
             processing_time_ms= processing_ms,
+            features          = features,
         )
 
         return SleepStageResponse(
@@ -245,6 +252,7 @@ async def predict_apnea(request: ApneaRequest):
         signal = np.array(request.signal, dtype=np.float32).reshape(1, -1)
         pred_class, pred_idx, confidence, probabilities, risk_level, recommendation = \
             ecg_model.predict(signal)
+        features = ecg_model.extract_features(signal)
 
         processing_ms = (time.time() - start) * 1000
         monitor.log_prediction(
@@ -253,6 +261,7 @@ async def predict_apnea(request: ApneaRequest):
             confidence        = confidence,
             probabilities     = probabilities,
             processing_time_ms= processing_ms,
+            features          = features,
         )
 
         return ApneaResponse(
@@ -281,8 +290,58 @@ async def get_stats(last_n: int = 100):
 
 @app.get("/monitoring/drift", tags=["Monitoring"])
 async def check_drift(threshold: float = 0.1, window_size: int = 50):
-    """Détection de drift sur les prédictions récentes."""
+    """Détection de drift de confiance sur les prédictions récentes."""
     return monitor.detect_drift(threshold, window_size)
+
+
+@app.get("/monitoring/drift/features", tags=["Monitoring"])
+async def check_feature_drift(
+    task: str = "sleep_stage",
+    threshold: float = 2.0,
+    window_size: int = 30,
+):
+    """
+    Drift des features vs baseline d'entraînement (models/baseline_stats.json).
+    task : sleep_stage | apnea
+    """
+    import numpy as np
+    task_key = "sleep_stage" if task == "sleep_stage" else "apnea"
+    feats = monitor.get_recent_features(task_key, window_size)
+    if feats is None or len(feats) < 5:
+        return {
+            "drift_detected": False,
+            "message": f"Pas assez de prédictions avec features ({0 if feats is None else len(feats)})",
+            "threshold": threshold,
+        }
+    return compare_features(np.array(feats), task_key, threshold)
+
+
+@app.post(
+    "/validations",
+    response_model=ClinicalValidationResponse,
+    tags=["Clinical"],
+    summary="Enregistre une validation médecin",
+)
+async def save_clinical_validation(body: ClinicalValidationRequest):
+    """Audit trail des validations humaines (JSONL persistant)."""
+    entry = validations.append(
+        task=body.task,
+        model_prediction=body.model_prediction,
+        model_confidence=body.model_confidence,
+        clinician_verdict=body.clinician_verdict,
+        comment=body.comment,
+        extra=body.extra,
+    )
+    return ClinicalValidationResponse(**entry)
+
+
+@app.get("/validations/recent", tags=["Clinical"])
+async def list_clinical_validations(n: int = 20, task: str | None = None):
+    """Dernières validations enregistrées."""
+    return {
+        "count_total": validations.count(),
+        "validations": validations.list_recent(n, task),
+    }
 
 
 @app.get("/monitoring/recent", tags=["Monitoring"])

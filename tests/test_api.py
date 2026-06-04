@@ -222,6 +222,36 @@ class TestApnea:
 
 # ─── Tests monitoring ─────────────────────────────────────────────────────────
 
+class TestClinicalValidation:
+    def test_save_validation(self, client, eeg_signal_valid):
+        client.post("/predict/sleep-stage", json={"signal": eeg_signal_valid})
+        r = client.post("/validations", json={
+            "task": "sleep_stage",
+            "model_prediction": "N2",
+            "model_confidence": 0.89,
+            "clinician_verdict": "Confirmé",
+            "comment": "Signal propre",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert "id" in data
+        assert data["clinician_verdict"] == "Confirmé"
+
+    def test_list_validations(self, client):
+        r = client.get("/validations/recent?n=5")
+        assert r.status_code == 200
+        assert "validations" in r.json()
+
+
+class TestFeatureDrift:
+    def test_feature_drift_endpoint(self, client, eeg_signal_valid):
+        for _ in range(6):
+            client.post("/predict/sleep-stage", json={"signal": eeg_signal_valid})
+        r = client.get("/monitoring/drift/features?task=sleep_stage")
+        assert r.status_code == 200
+        assert "drift_detected" in r.json()
+
+
 class TestMonitoring:
     def test_stats_returns_200(self, client):
         r = client.get("/monitoring/stats")

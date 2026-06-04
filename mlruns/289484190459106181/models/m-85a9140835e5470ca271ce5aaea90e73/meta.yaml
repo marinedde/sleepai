@@ -1,0 +1,11 @@
+artifact_location: file:///Users/marinedeldicque/Library/Mobile Documents/com~apple~CloudDocs/JEDHA/DATA
+  SCIENCE LEAD/aia/bloc 4 projet final/sleepai/notebooks/../mlruns/289484190459106181/models/m-85a9140835e5470ca271ce5aaea90e73/artifacts
+creation_timestamp: 1778105184713
+experiment_id: '289484190459106181'
+last_updated_timestamp: 1778105190636
+model_id: m-85a9140835e5470ca271ce5aaea90e73
+model_type: null
+name: pipeline_baseline
+source_run_id: 16d57866e6424705a4b2f064252e048a
+status: 2
+status_message: null

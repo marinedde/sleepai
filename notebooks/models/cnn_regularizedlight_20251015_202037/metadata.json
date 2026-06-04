@@ -1,0 +1,48 @@
+{
+  "model_name": "CNN_RegularizedLight",
+  "timestamp": "20251015_202037",
+  "architecture": {
+    "input_shape": [
+      500,
+      6
+    ],
+    "filters": [
+      48,
+      96
+    ],
+    "kernel_size": 3,
+    "dropout": 0.25,
+    "dense_units": 96,
+    "l2_regularization": 0.0001,
+    "output_classes": 5,
+    "class_names": [
+      "Wake",
+      "N1",
+      "N2",
+      "N3",
+      "REM"
+    ]
+  },
+  "training_config": {
+    "learning_rate": 0.0008,
+    "batch_size": 48,
+    "epochs": 50,
+    "optimizer": "Adam",
+    "loss": "sparse_categorical_crossentropy"
+  },
+  "performance": {
+    "test_accuracy": 0.6750902533531189,
+    "test_f1_score": 0.6735948202358321,
+    "cohen_kappa": 0.5690709442670274,
+    "dataset_size_train": 2584,
+    "dataset_size_val": 552,
+    "dataset_size_test": 554
+  },
+  "improvements": {
+    "vs_rf_v2": {
+      "rf_v2_accuracy": 0.646,
+      "cnn_accuracy": 0.6750902533531189,
+      "gain_percentage": 2.909025335311888
+    }
+  }
+}

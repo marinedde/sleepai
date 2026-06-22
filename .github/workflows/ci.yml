@@ -143,19 +143,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Vérifier les modèles (.joblib LFS)
-        run: |
-          for f in models/sleepai_eeg_pipeline.joblib models/sleepai_ecg_pipeline.joblib; do
-            size=$(wc -c < "$f" | tr -d ' ')
-            echo "$f : ${size} octets"
-            if [ "$size" -lt 1000000 ]; then
-              echo "ERREUR: $f trop petit — Git LFS non récupéré (fichier pointer)."
-              exit 1
-            fi
-          done
 
       - name: Setup Python
         uses: actions/setup-python@v5

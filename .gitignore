@@ -7,7 +7,6 @@ data/raw/
 data/raw_apnea/
 data/processed/
 .DS_Store
-*.joblib
 !models/baseline_stats.json
 !models/training_metrics.json
 data/validations/

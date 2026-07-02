@@ -146,6 +146,9 @@ jobs:
         with:
           lfs: true
 
+      - name: Pull LFS objects (real model binaries)
+        run: git lfs pull
+
       - name: Vérifier les modèles (.joblib LFS)
         run: |
           for f in models/somnia_eeg_pipeline.joblib models/somnia_ecg_pipeline.joblib; do

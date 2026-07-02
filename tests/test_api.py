@@ -5,9 +5,8 @@ Vérifie les endpoints principaux et la validation des inputs.
 
 import pytest
 import numpy as np
-from contextlib import asynccontextmanager
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -77,33 +76,18 @@ def mock_models():
         'model_loaded' : True,
     }
 
-    mock_eeg.extract_features.return_value = np.zeros(16, dtype=np.float32)
-    mock_ecg.extract_features.return_value = np.zeros(16, dtype=np.float32)
-
     return mock_eeg, mock_ecg
 
 
 @pytest.fixture
 def client(mock_models):
-    """Client de test avec modèles mockés (sans charger les .joblib)."""
+    """Client de test avec modèles mockés."""
     mock_eeg, mock_ecg = mock_models
-    import app.main as main_module
-    from app.main import app
-
-    original_lifespan = app.router.lifespan_context
-
-    @asynccontextmanager
-    async def test_lifespan(fastapi_app):
-        main_module.eeg_model = mock_eeg
-        main_module.ecg_model = mock_ecg
-        yield
-
-    app.router.lifespan_context = test_lifespan
-    try:
+    with patch('app.main.eeg_model', mock_eeg), \
+         patch('app.main.ecg_model', mock_ecg):
+        from app.main import app
         with TestClient(app) as c:
             yield c
-    finally:
-        app.router.lifespan_context = original_lifespan
 
 
 # ─── Tests endpoints de base ──────────────────────────────────────────────────

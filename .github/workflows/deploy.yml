@@ -1,4 +1,4 @@
-name: SleepAI CI/CD Pipeline
+name: Somnia CI/CD Pipeline
 
 on:
   push:
@@ -85,25 +85,25 @@ jobs:
     
     - name: Build Docker image
       run: |
-        docker build -t sleepai:latest .
+        docker build -t somnia:latest .
     
     - name: Test Docker container
       run: |
         echo "Starting Docker container..."
-        docker run -d -p 8000:8000 --name sleepai-test sleepai:latest
+        docker run -d -p 8000:8000 --name somnia-test somnia:latest
         
         echo "Waiting for container to start (60 seconds)..."
         sleep 60
         
         echo "Checking if container is still running..."
-        docker ps | grep sleepai-test || (echo "Container stopped!" && docker logs sleepai-test && exit 1)
+        docker ps | grep somnia-test || (echo "Container stopped!" && docker logs somnia-test && exit 1)
         
         echo "Testing health endpoint..."
-        curl -f http://localhost:8000/health || (echo "Health check failed!" && docker logs sleepai-test && exit 1)
+        curl -f http://localhost:8000/health || (echo "Health check failed!" && docker logs somnia-test && exit 1)
         
         echo "Cleaning up..."
-        docker stop sleepai-test
-        docker rm sleepai-test
+        docker stop somnia-test
+        docker rm somnia-test
       continue-on-error: true
     
     - name: Docker build success
@@ -122,4 +122,4 @@ jobs:
         echo "🚀 Deploying to Render..."
         echo "Render will automatically detect the push and redeploy"
         echo "✅ Deployment triggered successfully"
-        echo "🔗 API URL: https://sleepai-api.onrender.com"
+        echo "🔗 API URL: https://somnia-api.onrender.com"
